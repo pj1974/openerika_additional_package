@@ -245,7 +245,7 @@ IF &hasTracer==1
   WinPOS 120. 25.
   ITMTrace.List
 )
-ELSE IF &hasTracer==1
+ELSE IF &hasTracer==2
 (
   WinPOS 120. 25.
   Trace.List
