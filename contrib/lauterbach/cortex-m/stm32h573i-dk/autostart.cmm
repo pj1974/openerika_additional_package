@@ -130,7 +130,7 @@ IF (&hasTracer==2)
   (
     Trace.METHOD Analyzer
     Trace.AutoInit ON
-    Trace.AutoFocus
+    ; Trace.AutoFocus
   )
 )
 
@@ -171,10 +171,6 @@ IF &hasORTI==1
 
 IF &hasTracer==1
 (
-  ; --------------------------------------------------------------------------------
-  ; load demo program (uses internal RAM only)
-  Data.LOAD.Elf ~~~~/sieve_ram_thumb_ii_v8m_base.elf
-
   ; --------------------------------------------------------------------------------
   ; initialize SerialWireViewer
 
@@ -218,8 +214,8 @@ ELSE IF &hasTracer==2
 
 ; Disable automatic breakpoint on Faults
 ; Let the Execution Escalation to work properly.
-TrOnchip.Set HARDERR OFF
-TrOnchip.Set MMERR OFF
-TrOnchip.Set BUSERR OFF
+;TrOnchip.Set HARDERR OFF
+;TrOnchip.Set MMERR OFF
+;TrOnchip.Set BUSERR OFF
 
 ENDDO
