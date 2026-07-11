@@ -36,7 +36,10 @@
 &hasCableCheck=0
 
 ; only for tc3xx
+IF !INTERFACE.SIM()
+(
 &mcuFlashScriptUCB=0
+)
 
 ; subdir
 &subdir=0
@@ -80,122 +83,181 @@ IF (&appNCores==6)
   CORE.ASSIGN 1. 2. 3. 4. 5. 6. // assign cores to the SMP system
 )
 
+IF INTERFACE.SIM()
+(
+  VCO.Frequency 300.MHz
+
+  Trace.SIZE 0x8000000
+  Trace.AutoArm ON
+  Trace.AutoInit ON
+  Trace.Mode Fifo
+
+
+  ; load the simulation model
+  &nCore=CORE.NUMBER()
+  &nSTM=&nCore
+  &CoreToSTMClockRatio=3.
+  &nICUBasePort=0.
+
+  &OS_Name=OS.NAME()
+  IF "&OS_Name"=="Windows"
+  (
+    IF SOFTWARE.64BIT()
+    (
+      SIM.LOAD ~~/demo/tricore/simulator/models/aurix_tc3xx/icu/icu_tc3xx_win64.dll &nCore &nICUBasePort
+      SIM.LOAD ~~/demo/tricore/simulator/models/aurix_tc3xx/stm/stm_tc3xx_win64.dll &nSTM &CoreToSTMClockRatio &nICUBasePort
+    )
+    ELSE
+    (
+      SIM.LOAD ~~/demo/tricore/simulator/models/aurix_tc3xx/icu/icu_tc3xx_win32.dll &nCore &nICUBasePort
+      SIM.LOAD ~~/demo/tricore/simulator/models/aurix_tc3xx/stm/stm_tc3xx_win32.dll &nSTM &CoreToSTMClockRatio &nICUBasePort
+    )
+  )
+  ELSE IF "&OS_Name"=="Linux"
+  (
+    IF SOFTWARE.64BIT()
+    (
+      SIM.LOAD ~~/demo/tricore/simulator/models/aurix_tc3xx/icu/icu_tc3xx_linux64.so &nCore &nICUBasePort
+      SIM.LOAD ~~/demo/tricore/simulator/models/aurix_tc3xx/stm/stm_tc3xx_linux64.so &nSTM &CoreToSTMClockRatio &nICUBasePort
+    )
+    ELSE
+    (
+      SIM.LOAD ~~/demo/tricore/simulator/models/aurix_tc3xx/icu/icu_tc3xx_linux32.so &nCore &nICUBasePort
+      SIM.LOAD ~~/demo/tricore/simulator/models/aurix_tc3xx/stm/stm_tc3xx_linux32.so &nSTM &CoreToSTMClockRatio &nICUBasePort
+    )
+  )
+  ELSE
+  (
+    PRINT "This demo is not supported for &OS_Name."
+    ENDDO
+  )
+)
+
 SYStem.Up
 
-; --------------------------------------------------------------------------------
-; Flash programming
-LOCAL &elfFile &progFlash &bmhdResult
+LOCAL &elfFile
 &elfFile="~~~~/obj/OpenErikaApp.elf"
 
-; prepare flash programming (declarations)
-DO ~~/demo/tricore/flash/&mcuFlashScript.cmm CPU=&mcuDerivative PREPAREONLY
-
-; check if application is already in flash and load symbols
-Data.LOAD.Elf "&elfFile"  0x80000000--0xAFC1FFFF /DIFF /SingleLineAdjacent
-IF FOUND()
+IF INTERFACE.SIM()
 (
-  ; ==== Step 1: Program TriCore code ====
+  Data.LOAD.Elf "&elfFile"  0x80000000--0xAFC1FFFF
+)
+ELSE
+(
+  ; --------------------------------------------------------------------------------
+  ; Flash programming
+  LOCAL &progFlash &bmhdResult
 
-  DIALOG.YESNO "Program Lauterbach demo into flash memory?"
-  ENTRY &progFlash
-  IF (&progFlash)
-  (
-    ; enable flash programming
-    FLASH.ReProgram ALL
+  ; prepare flash programming (declarations)
+  DO ~~/demo/tricore/flash/&mcuFlashScript.cmm CPU=&mcuDerivative PREPAREONLY
 
-    ; load demo application
-    ; Limit address ranges to 0x80000000--0xAFC1FFFF to avoid unexpected bus errors
-    Data.LOAD.Elf "&elfFile" 0x80000000--0xAFC1FFFF
-
-    FLASH.ReProgram OFF
-  )
-
-  ; ==== Step 2: Write boot mode header ====
-
-  PRIVATE &progUcb &ucbOrigDiff &ucbCopyDiff &supported &DMU_HF_CONFIRM0 &result
-  &progUcb=FALSE()
-  ; Check if both UCBs are in state UNLOCKED or UNREAD. Other states are not supported by this script
-  &DMU_HF_CONFIRM0=Data.Long(ED:0xF8040020)
-  &supported=(((&DMU_HF_CONFIRM0)&(0x00020002))==0x00000000)
-  IF !&supported
-  (
-	  DIALOG.MESSAGE "UCB_BMHD0_ORIG or UCB_BMHD0_COPY are not in state unlocked or unread"
-  )
-  ; Check if we need to program the BMHD
-  &ucbOrigDiff=FALSE()
-  &ucbCopyDiff=FALSE()
-  IF &supported
-  (
-  	Data.LOAD.Elf "&elfFile" 0xAF400000++0x1FF /DIFF
-  	&ucbOrigDiff=FOUND()
-  	Data.LOAD.Elf "&elfFile" 0xAF401000++0x1FF /DIFF
-  	&ucbCopyDiff=FOUND()
-  )
-  IF (&ucbOrigDiff)||(&ucbCopyDiff)
-  (
-    DIALOG.YESNO "Configure UCB_BMHD0_ORIG and UCB_BMHD0_COPY to start demo application?"
-    ENTRY &progUcb
-  )
-
-  IF (&progUcb)&&(&ucbCopyDiff)
-  (
-    ; enable programming of UCB_BMHD0_COPY
-    DO ~~/demo/tricore/flash/&mcuFlashScriptUCB.cmm UCB=BMHD0_COPY PREPAREONLY
-    FLASH.AUTO 0xAF401000++0x1FF
-
-    ; load data of UCB_BMHD0_COPY
-    Data.LOAD.Elf "&elfFile" 0xAF401000++0x1FF
-
-    ; check if we loaded a valid UCB
-    DO ~~/demo/tricore/flash/&mcuFlashScriptUCB.cmm UCB=BMHD0_COPY CHECKUCB
-    ENTRY &result
-
-    IF ("&result"=="UCBOK")
-    (
-      FLASH.AUTO.off
-    )
-    ELSE
-    (
-      FLASH.AUTO.CANCEL
-    )
-    ; protect UCB sector against unwanted modification
-    FLASH.CHANGETYPE 0xAF401000++0x1FF NOP
-  )
-
-  IF (&progUcb)&&(&ucbOrigDiff)
-  (
-    ; enable programming of UCB_BMHD0_ORIG
-    DO ~~/demo/tricore/flash/&mcuFlashScriptUCB.cmm UCB=BMHD0_ORIG PREPAREONLY
-    FLASH.AUTO 0xAF400000++0x1FF
-
-    ; load data of UCB_BMHD0_ORIG
-    Data.LOAD.Elf "&elfFile" 0xAF400000++0x1FF
-
-    ; check if we loaded a valid UCB
-    DO ~~/demo/tricore/flash/&mcuFlashScriptUCB.cmm UCB=BMHD0_ORIG CHECKUCB
-    ENTRY &result
-
-    IF ("&result"=="UCBOK")
-    (
-      FLASH.AUTO.off
-    )
-    ELSE
-    (
-      FLASH.AUTO.CANCEL
-    )
-    ; protect UCB sector against unwanted modification
-    FLASH.CHANGETYPE 0xAF400000++0x1FF NOP
-  )
-
-  ; ==== Step 3: Verify programming ====
-
-  Data.LOAD.Elf "&elfFile" 0x80000000--0xAFC1FFFF /DIFF
+  ; check if application is already in flash and load symbols
+  Data.LOAD.Elf "&elfFile"  0x80000000--0xAFC1FFFF /DIFF /SingleLineAdjacent
   IF FOUND()
   (
-    ; maybe some sections are still declared as NOP?
-    PRIVATE &diffAddress
-    &diffAddress=TRACK.ADDRESS()
-    DIALOG.MESSAGE "File &elfFile has not been fully flashed, difference found at address &diffAddress (check flash declaration)"
+    ; ==== Step 1: Program TriCore code ====
+
+    DIALOG.YESNO "Program Lauterbach demo into flash memory?"
+    ENTRY &progFlash
+    IF (&progFlash)
+    (
+      ; enable flash programming
+      FLASH.ReProgram ALL
+
+      ; load demo application
+      ; Limit address ranges to 0x80000000--0xAFC1FFFF to avoid unexpected bus errors
+      Data.LOAD.Elf "&elfFile" 0x80000000--0xAFC1FFFF
+
+      FLASH.ReProgram OFF
+    )
+
+    ; ==== Step 2: Write boot mode header ====
+
+    PRIVATE &progUcb &ucbOrigDiff &ucbCopyDiff &supported &DMU_HF_CONFIRM0 &result
+    &progUcb=FALSE()
+    ; Check if both UCBs are in state UNLOCKED or UNREAD. Other states are not supported by this script
+    &DMU_HF_CONFIRM0=Data.Long(ED:0xF8040020)
+    &supported=(((&DMU_HF_CONFIRM0)&(0x00020002))==0x00000000)
+    IF !&supported
+    (
+      DIALOG.MESSAGE "UCB_BMHD0_ORIG or UCB_BMHD0_COPY are not in state unlocked or unread"
+    )
+    ; Check if we need to program the BMHD
+    &ucbOrigDiff=FALSE()
+    &ucbCopyDiff=FALSE()
+    IF &supported
+    (
+      Data.LOAD.Elf "&elfFile" 0xAF400000++0x1FF /DIFF
+      &ucbOrigDiff=FOUND()
+      Data.LOAD.Elf "&elfFile" 0xAF401000++0x1FF /DIFF
+      &ucbCopyDiff=FOUND()
+    )
+    IF (&ucbOrigDiff)||(&ucbCopyDiff)
+    (
+      DIALOG.YESNO "Configure UCB_BMHD0_ORIG and UCB_BMHD0_COPY to start demo application?"
+      ENTRY &progUcb
+    )
+
+    IF (&progUcb)&&(&ucbCopyDiff)
+    (
+      ; enable programming of UCB_BMHD0_COPY
+      DO ~~/demo/tricore/flash/&mcuFlashScriptUCB.cmm UCB=BMHD0_COPY PREPAREONLY
+      FLASH.AUTO 0xAF401000++0x1FF
+
+      ; load data of UCB_BMHD0_COPY
+      Data.LOAD.Elf "&elfFile" 0xAF401000++0x1FF
+
+      ; check if we loaded a valid UCB
+      DO ~~/demo/tricore/flash/&mcuFlashScriptUCB.cmm UCB=BMHD0_COPY CHECKUCB
+      ENTRY &result
+
+      IF ("&result"=="UCBOK")
+      (
+        FLASH.AUTO.off
+      )
+      ELSE
+      (
+        FLASH.AUTO.CANCEL
+      )
+      ; protect UCB sector against unwanted modification
+      FLASH.CHANGETYPE 0xAF401000++0x1FF NOP
+    )
+
+    IF (&progUcb)&&(&ucbOrigDiff)
+    (
+      ; enable programming of UCB_BMHD0_ORIG
+      DO ~~/demo/tricore/flash/&mcuFlashScriptUCB.cmm UCB=BMHD0_ORIG PREPAREONLY
+      FLASH.AUTO 0xAF400000++0x1FF
+
+      ; load data of UCB_BMHD0_ORIG
+      Data.LOAD.Elf "&elfFile" 0xAF400000++0x1FF
+
+      ; check if we loaded a valid UCB
+      DO ~~/demo/tricore/flash/&mcuFlashScriptUCB.cmm UCB=BMHD0_ORIG CHECKUCB
+      ENTRY &result
+
+      IF ("&result"=="UCBOK")
+      (
+        FLASH.AUTO.off
+      )
+      ELSE
+      (
+        FLASH.AUTO.CANCEL
+      )
+      ; protect UCB sector against unwanted modification
+      FLASH.CHANGETYPE 0xAF400000++0x1FF NOP
+    )
+
+    ; ==== Step 3: Verify programming ====
+
+    Data.LOAD.Elf "&elfFile" 0x80000000--0xAFC1FFFF /DIFF
+    IF FOUND()
+    (
+      ; maybe some sections are still declared as NOP?
+      PRIVATE &diffAddress
+      &diffAddress=TRACK.ADDRESS()
+      DIALOG.MESSAGE "File &elfFile has not been fully flashed, difference found at address &diffAddress (check flash declaration)"
+    )
   )
 )
 
@@ -208,41 +270,51 @@ GOSUB OpenWindows
 
 GOSUB OptionalSettings
 
-IF (CORENUMBER()>1.)
+IF INTERFACE.SIM()
 (
-  IF (Analyzer()||(Onchip.STATE()!=5.))
+  IF (&hasORTI==1)
   (
-    ; enable TriCore core 1 for flow trace (core 0 is enabled by default)
-    MCDS.SOURCE.Set CpuMux1.Core TriCore1
-    MCDS.SOURCE.Set CpuMux1.Program ON
-    MCDS.SOURCE.Set CpuMux1.PTMode FlowTrace
+    TASK.ORTI application/gencode/system.orti
   )
 )
-
-IF (&hasORTI==1)
+ELSE
 (
-  TASK.ORTI application/gencode/system.orti
-
-  MCDS.SOURCE.Set CpuMux0.Program OFF
-  MCDS.SOURCE.Set CpuMux0.WriteAddr ON
-  MCDS.SOURCE.Set CpuMux0.WriteData ON
-
   IF (CORENUMBER()>1.)
   (
-    Break.Set TASK.CONFIG(magic[0]) /Write /TraceEnable
-
-    MCDS.SOURCE.Set CpuMux1.Program OFF
-    MCDS.SOURCE.Set CpuMux1.WriteAddr ON
-    MCDS.SOURCE.Set CpuMux1.WriteData ON
-
-    Break.Set TASK.CONFIG(magic[1]) /Write /TraceEnable
-    Break.Set TASK.CONFIG(magic[2]) /Write /TraceEnable
+    IF (Analyzer()||(Onchip.STATE()!=5.))
+    (
+      ; enable TriCore core 1 for flow trace (core 0 is enabled by default)
+      MCDS.SOURCE.Set CpuMux1.Core TriCore1
+      MCDS.SOURCE.Set CpuMux1.Program ON
+      MCDS.SOURCE.Set CpuMux1.PTMode FlowTrace
+    )
   )
-  ELSE
+
+  IF (&hasORTI==1)
   (
-    Break.Set TASK.CONFIG(magic) /Write /TraceEnable
-    Break.Set TASK.CONFIG(magic_service) /Write /TraceEnable
-    //Break.Set TASK.CONFIG(magic_isr2) /Write /TraceEnable
+    TASK.ORTI application/gencode/system.orti
+
+    MCDS.SOURCE.Set CpuMux0.Program OFF
+    MCDS.SOURCE.Set CpuMux0.WriteAddr ON
+    MCDS.SOURCE.Set CpuMux0.WriteData ON
+
+    IF (CORENUMBER()>1.)
+    (
+      Break.Set TASK.CONFIG(magic[0]) /Write /TraceEnable
+
+      MCDS.SOURCE.Set CpuMux1.Program OFF
+      MCDS.SOURCE.Set CpuMux1.WriteAddr ON
+      MCDS.SOURCE.Set CpuMux1.WriteData ON
+
+      Break.Set TASK.CONFIG(magic[1]) /Write /TraceEnable
+      Break.Set TASK.CONFIG(magic[2]) /Write /TraceEnable
+    )
+    ELSE
+    (
+      Break.Set TASK.CONFIG(magic) /Write /TraceEnable
+      Break.Set TASK.CONFIG(magic_service) /Write /TraceEnable
+      //Break.Set TASK.CONFIG(magic_isr2) /Write /TraceEnable
+    )
   )
 )
 
