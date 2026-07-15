@@ -18,6 +18,7 @@
 ;
 ; @Description:
 ;   Programs application into the processor internal flash.
+;   or, as an alternative, configure the instruction set simulator
 ; --------------------------------------------------------------------------------
 ; These variables are set by OpenDruid when parsing this script.
 ; Do not modify the lines below
@@ -48,18 +49,21 @@ IF !INTERFACE.SIM()
 ; initialize and start the debugger
 
 RESet
-SYStem.CPU &mcuDerivative
 ; The TriBoard-TC3x7 comes with a TLF35584 power supply
 ; This power supply has integrated watchdog functionality which will cut all
 ; power if not served correctly. By default this demo will disable this
 ; watchdog functionality. This includes configuring the QSPI controller as
 ; well as writing data to the QSPI.
-
-IF !STATE.POWER()
+IF !INTERFACE.SIM()
 (
-  DO ~~~~/disable_tlf35584.cmm
+  IF !STATE.POWER()
+  (
+    DO ~~~~/disable_tlf35584.cmm
+  )
 )
 SYStem.Down
+
+SYStem.CPU &mcuDerivative
 
 ; TODO: there must be a smarter way to do this!
 IF (&appNCores==2)
@@ -85,18 +89,23 @@ IF (&appNCores==6)
 
 IF INTERFACE.SIM()
 (
-  VCO.Frequency 300.MHz
+  ; system startup
+  SIM.UNLOAD
+  AREA.CLEAR
 
-  Trace.SIZE 0x8000000
+  Trace.SIZE 100000000.
   Trace.AutoArm ON
   Trace.AutoInit ON
   Trace.Mode Fifo
 
+  ; Configure TriCore Cores frequency
+  VCO.Frequency &mcuBoardOscillatorFrequency
 
   ; load the simulation model
+  PRINT "loading simulation model..."
   &nCore=CORE.NUMBER()
   &nSTM=&nCore
-  &CoreToSTMClockRatio=3.
+  &CoreToSTMClockRatio=4.
   &nICUBasePort=0.
 
   &OS_Name=OS.NAME()
@@ -141,6 +150,12 @@ LOCAL &elfFile
 IF INTERFACE.SIM()
 (
   Data.LOAD.Elf "&elfFile"  0x80000000--0xAFC1FFFF
+  Register.Set PC _start
+
+  ; Set SCU_CCUCON0.CLKSEL=0 (fBACK)
+  ; Set SCU_CCUCON0.STMDIV=2 (fSOURCE0/2)
+  ; This results in the STM timers running at 50.MHz
+  PER.Set.simple D:0xF0036030 %Long (Data.Long(D:0xF0036030)&~0x3000000F)|0x2
 )
 ELSE
 (
@@ -274,7 +289,7 @@ IF INTERFACE.SIM()
 (
   IF (&hasORTI==1)
   (
-    TASK.ORTI application/gencode/system.orti
+    TASK.ORTI application/gencode/system.orti /AddTraceId OpenErika
   )
 )
 ELSE
