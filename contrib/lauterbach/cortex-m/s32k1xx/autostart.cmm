@@ -189,24 +189,24 @@ IF &hasORTI==1
 
   ; Markers provided by Marco Ferrario
   y.marker.res
-  y.marker.c IGNORE OSEE_change_context_from_task_end
-  y.marker.c IGNORE OSEE_cortex_m_change_context_from_task_end
-  ; y.marker.c IGNORE OSEE_scheduler_task_end
-  y.marker.c IGNORE OSEE_scheduler_task_wrapper_run
-  y.marker.c IGNORE OSEE_scheduler_task_not_terminated
-  y.marker.c IGNORE OSEE_scheduler_task_terminated
-  y.marker.c IGNORE OSEE_scheduler_task_terminated+0x48
-  ; y.marker.c IGNORE OSEE_cortex_m_switch_context
-  ; y.marker.c IGNORE OSEE_cortex_m_switch_context+0x0e
-  y.marker.c IGNORE OSEE_change_context_from_running
-  y.marker.c IGNORE OSEE_change_context_from_running+26
-  y.marker.c IGNORE OSEE_scheduler_task_wrapper_restore
-  y.marker.c IGNORE OSEE_scheduler_core_pop_running
-  y.marker.c IGNORE OSEE_scheduler_core_pop_running+0x20
-  ; y.marker.c IGNORE OSEE_scheduler_stk_next
-  ; y.marker.c IGNORE OSEE_scheduler_stk_next+0x1c
-  ; y.marker.c IGNORE OSEE_scheduler_core_rq_preempt_stk
-  ; y.marker.c IGNORE OSEE_scheduler_core_rq_preempt_stk+0x52
+  y.marker.c IGNORE OE_change_context_from_task_end
+  y.marker.c IGNORE OE_cortex_m_change_context_from_task_end
+  ; y.marker.c IGNORE OE_scheduler_task_end
+  y.marker.c IGNORE OE_scheduler_task_wrapper_run
+  y.marker.c IGNORE OE_scheduler_task_not_terminated
+  y.marker.c IGNORE OE_scheduler_task_terminated
+  y.marker.c IGNORE OE_scheduler_task_terminated+0x48
+  ; y.marker.c IGNORE OE_cortex_m_switch_context
+  ; y.marker.c IGNORE OE_cortex_m_switch_context+0x0e
+  y.marker.c IGNORE OE_change_context_from_running
+  y.marker.c IGNORE OE_change_context_from_running+26
+  y.marker.c IGNORE OE_scheduler_task_wrapper_restore
+  y.marker.c IGNORE OE_scheduler_core_pop_running
+  y.marker.c IGNORE OE_scheduler_core_pop_running+0x20
+  ; y.marker.c IGNORE OE_scheduler_stk_next
+  ; y.marker.c IGNORE OE_scheduler_stk_next+0x1c
+  ; y.marker.c IGNORE OE_scheduler_core_rq_preempt_stk
+  ; y.marker.c IGNORE OE_scheduler_core_rq_preempt_stk+0x52
   y.marker.c CLEANUP TerminateTask
   ;y.marker.c FEXITDOUBLE SVC_Handler+2
 )

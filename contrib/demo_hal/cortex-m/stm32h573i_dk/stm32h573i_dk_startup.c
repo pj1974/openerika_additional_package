@@ -13,7 +13,7 @@
 
 #include "demo_hal.h"
 
-#if OSEE_CPU_CLOCK == 250000000U
+#if OE_CPU_CLOCK == 250000000U
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
@@ -67,7 +67,7 @@ void SystemClock_Config(void)
   */
   __HAL_FLASH_SET_PROGRAM_DELAY(FLASH_PROGRAMMING_DELAY_2);
 }
-#elif OSEE_CPU_CLOCK == 125000000U
+#elif OE_CPU_CLOCK == 125000000U
 /**
   * @brief System Clock Configuration
   * @retval None
@@ -126,7 +126,7 @@ void SystemClock_Config(void)
   */
   __HAL_FLASH_SET_PROGRAM_DELAY(FLASH_PROGRAMMING_DELAY_2);
 }
-#elif OSEE_CPU_CLOCK == 32000000U
+#elif OE_CPU_CLOCK == 32000000U
 
 // ok. default configuration
 void SystemClock_Config(void) {
