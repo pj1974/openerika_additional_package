@@ -58,7 +58,7 @@ IF !INTERFACE.SIM()
 (
   IF !STATE.POWER()
   (
-    DO ~~~~/disable_tlf35584.cmm
+    DO ~~/demo/tricore/hardware/triboard-tc3x7/tc397xe/disable_tlf35584.cmm
   )
 )
 SYStem.Down
